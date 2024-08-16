@@ -168,6 +168,18 @@ class AsyncVideoFrameLoader:
     def __len__(self):
         return len(self.images)
 
+def load_ct_slices(
+    ct_path,
+    image_size,
+    offload_ct_to_cpu,
+    img_mean=(0.485, 0.456, 0.406),
+    img_std=(0.229, 0.224, 0.225),
+    async_loading_frames=False,
+    compute_device=torch.device("cuda"),
+):
+    pass
+    
+
 
 def load_video_frames(
     video_path,
@@ -226,6 +238,8 @@ def load_video_frames(
     images = torch.zeros(num_frames, 3, image_size, image_size, dtype=torch.float32)
     for n, img_path in enumerate(tqdm(img_paths, desc="frame loading (JPEG)")):
         images[n], video_height, video_width = _load_img_as_tensor(img_path, image_size)
+    print(np.max(images))
+    print(np.min(images))
     if not offload_video_to_cpu:
         images = images.to(compute_device)
         img_mean = img_mean.to(compute_device)
@@ -233,6 +247,7 @@ def load_video_frames(
     # normalize by mean and std
     images -= img_mean
     images /= img_std
+    print(images.shape)
     return images, video_height, video_width
 
 
