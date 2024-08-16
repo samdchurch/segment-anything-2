@@ -47,11 +47,14 @@ class SAM2CTPredictor(SAM2Base):
         offload_ct_to_cpu=False,
         offload_state_to_cpu=False,
         async_loading_frames=False,
+        min_val=None,
+        max_val=None
     ):
         """Initialize an inference state."""
         compute_device = self.device  # device of the model
         ct_data = nib.load(ct_path).get_fdata()
-        ct_data = np.clip(ct_data, -1000, 1000)
+        if min_val is not None and max_val is not None:
+            ct_data = np.clip(ct_data, min_val, max_val)
         height, width = ct_data.shape[0], ct_data.shape[1]
         img_mean=(0.485, 0.456, 0.406)
         img_std=(0.229, 0.224, 0.225)
