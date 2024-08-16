@@ -9,6 +9,8 @@ from collections import OrderedDict
 import nibabel as nib
 import numpy as np
 import torch
+import torch.nn.functional as F
+
 
 from tqdm import tqdm
 
@@ -49,14 +51,17 @@ class SAM2CTPredictor(SAM2Base):
         """Initialize an inference state."""
         compute_device = self.device  # device of the model
         ct_data = nib.load(ct_path).get_fdata()
+
         min_val = np.min(ct_data)
-        ct_data -= min_val
-        ct_data /= np.max(ct_data)
         ct_data = torch.tensor(ct_data)
+        ct_data = ct_data.repeat(1, 1, 1, 3)
         ct_data = ct_data.permute(2, 3, 0, 1)
+        ct_data = F.interpolate(ct_data, size=(1024, 1024), mode='bilinear', align_corners=False)
+
         print(ct_data.shape)
         print(np.min(ct_data.numpy()))
         print(np.max(ct_data.numpy()))
+        
 
         # images, video_height, video_width = load_ct(
         #     video_path=video_path,
