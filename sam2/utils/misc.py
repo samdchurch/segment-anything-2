@@ -245,14 +245,14 @@ def load_video_frames(
     images = torch.zeros(num_frames, 3, image_size, image_size, dtype=torch.float32)
     for n, img_path in enumerate(tqdm(img_paths, desc="frame loading (JPEG)")):
         images[n], video_height, video_width = _load_img_as_tensor(img_path, image_size)
-    print(images.shape)
-    print(np.max(images.numpy()))
-    print(np.min(images.numpy()))
+
     if not offload_video_to_cpu:
         images = images.to(compute_device)
         img_mean = img_mean.to(compute_device)
         img_std = img_std.to(compute_device)
     # normalize by mean and std
+    print(img_mean.shape)
+    print(images.shape)
     images -= img_mean
     images /= img_std
     print(images.shape)
