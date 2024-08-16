@@ -239,8 +239,8 @@ def load_video_frames(
     for n, img_path in enumerate(tqdm(img_paths, desc="frame loading (JPEG)")):
         images[n], video_height, video_width = _load_img_as_tensor(img_path, image_size)
     print(images.shape)
-    print(np.max(images))
-    print(np.min(images))
+    print(np.max(images.numpy()))
+    print(np.min(images.numpy()))
     if not offload_video_to_cpu:
         images = images.to(compute_device)
         img_mean = img_mean.to(compute_device)
