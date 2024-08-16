@@ -51,16 +51,28 @@ class SAM2CTPredictor(SAM2Base):
         """Initialize an inference state."""
         compute_device = self.device  # device of the model
         ct_data = nib.load(ct_path).get_fdata()
+        height, width = ct_data.shape[0], ct_data.shape[1]
+        img_mean=(0.485, 0.456, 0.406),
+        img_std=(0.229, 0.224, 0.225)
+        img_mean = torch.tensor(img_mean, dtype=torch.float32)[:, None, None]
+        img_std = torch.tensor(img_std, dtype=torch.float32)[:, None, None]
 
         min_val = np.min(ct_data)
         ct_data = torch.tensor(ct_data)
         ct_data = ct_data.repeat(1, 1, 1, 3)
         ct_data = ct_data.permute(2, 3, 0, 1)
         ct_data = F.interpolate(ct_data, size=(1024, 1024), mode='bilinear', align_corners=False)
+        min_val = ct_data.min()
+        max_val = ct_data.max()
+        ct_data = (ct_data - min_val) / (max_val - min_val)
 
-        print(ct_data.shape)
-        print(np.min(ct_data.numpy()))
-        print(np.max(ct_data.numpy()))
+        if not offload_ct_to_cpu:
+            ct_data = ct_data.to(compute_device)
+            img_mean = img_mean.to(compute_device)
+            img_std = img_std.to(compute_device)
+        # normalize by mean and std
+        ct_data -= img_mean
+        ct_data /= img_std
         
 
         # images, video_height, video_width = load_ct(
@@ -70,61 +82,61 @@ class SAM2CTPredictor(SAM2Base):
         #     async_loading_frames=async_loading_frames,
         #     compute_device=compute_device,
         # )
-        # inference_state = {}
-        # inference_state["images"] = images
-        # inference_state["num_frames"] = len(images)
-        # # whether to offload the video frames to CPU memory
-        # # turning on this option saves the GPU memory with only a very small overhead
-        # inference_state["offload_video_to_cpu"] = offload_video_to_cpu
-        # # whether to offload the inference state to CPU memory
-        # # turning on this option saves the GPU memory at the cost of a lower tracking fps
-        # # (e.g. in a test case of 768x768 model, fps dropped from 27 to 24 when tracking one object
-        # # and from 24 to 21 when tracking two objects)
-        # inference_state["offload_state_to_cpu"] = offload_state_to_cpu
-        # # the original video height and width, used for resizing final output scores
-        # inference_state["video_height"] = video_height
-        # inference_state["video_width"] = video_width
-        # inference_state["device"] = compute_device
-        # if offload_state_to_cpu:
-        #     inference_state["storage_device"] = torch.device("cpu")
-        # else:
-        #     inference_state["storage_device"] = compute_device
-        # # inputs on each frame
-        # inference_state["point_inputs_per_obj"] = {}
-        # inference_state["mask_inputs_per_obj"] = {}
-        # # visual features on a small number of recently visited frames for quick interactions
-        # inference_state["cached_features"] = {}
-        # # values that don't change across frames (so we only need to hold one copy of them)
-        # inference_state["constants"] = {}
-        # # mapping between client-side object id and model-side object index
-        # inference_state["obj_id_to_idx"] = OrderedDict()
-        # inference_state["obj_idx_to_id"] = OrderedDict()
-        # inference_state["obj_ids"] = []
-        # # A storage to hold the model's tracking results and states on each frame
-        # inference_state["output_dict"] = {
-        #     "cond_frame_outputs": {},  # dict containing {frame_idx: <out>}
-        #     "non_cond_frame_outputs": {},  # dict containing {frame_idx: <out>}
-        # }
-        # # Slice (view) of each object tracking results, sharing the same memory with "output_dict"
-        # inference_state["output_dict_per_obj"] = {}
-        # # A temporary storage to hold new outputs when user interact with a frame
-        # # to add clicks or mask (it's merged into "output_dict" before propagation starts)
-        # inference_state["temp_output_dict_per_obj"] = {}
-        # # Frames that already holds consolidated outputs from click or mask inputs
-        # # (we directly use their consolidated outputs during tracking)
-        # inference_state["consolidated_frame_inds"] = {
-        #     "cond_frame_outputs": set(),  # set containing frame indices
-        #     "non_cond_frame_outputs": set(),  # set containing frame indices
-        # }
-        # # metadata for each tracking frame (e.g. which direction it's tracked)
-        # inference_state["tracking_has_started"] = False
-        # inference_state["frames_already_tracked"] = {}
-        # # Warm up the visual backbone and cache the image feature on frame 0
-        # self._get_image_feature(inference_state, frame_idx=0, batch_size=1)
-        # return inference_state
+        inference_state = {}
+        inference_state["images"] = ct_data
+        inference_state["num_frames"] = len(ct_data)
+        # whether to offload the video frames to CPU memory
+        # turning on this option saves the GPU memory with only a very small overhead
+        inference_state["offload_video_to_cpu"] = offload_ct_to_cpu
+        # whether to offload the inference state to CPU memory
+        # turning on this option saves the GPU memory at the cost of a lower tracking fps
+        # (e.g. in a test case of 768x768 model, fps dropped from 27 to 24 when tracking one object
+        # and from 24 to 21 when tracking two objects)
+        inference_state["offload_state_to_cpu"] = offload_state_to_cpu
+        # the original video height and width, used for resizing final output scores
+        inference_state["video_height"] = height
+        inference_state["video_width"] = width
+        inference_state["device"] = compute_device
+        if offload_state_to_cpu:
+            inference_state["storage_device"] = torch.device("cpu")
+        else:
+            inference_state["storage_device"] = compute_device
+        # inputs on each frame
+        inference_state["point_inputs_per_obj"] = {}
+        inference_state["mask_inputs_per_obj"] = {}
+        # visual features on a small number of recently visited frames for quick interactions
+        inference_state["cached_features"] = {}
+        # values that don't change across frames (so we only need to hold one copy of them)
+        inference_state["constants"] = {}
+        # mapping between client-side object id and model-side object index
+        inference_state["obj_id_to_idx"] = OrderedDict()
+        inference_state["obj_idx_to_id"] = OrderedDict()
+        inference_state["obj_ids"] = []
+        # A storage to hold the model's tracking results and states on each frame
+        inference_state["output_dict"] = {
+            "cond_frame_outputs": {},  # dict containing {frame_idx: <out>}
+            "non_cond_frame_outputs": {},  # dict containing {frame_idx: <out>}
+        }
+        # Slice (view) of each object tracking results, sharing the same memory with "output_dict"
+        inference_state["output_dict_per_obj"] = {}
+        # A temporary storage to hold new outputs when user interact with a frame
+        # to add clicks or mask (it's merged into "output_dict" before propagation starts)
+        inference_state["temp_output_dict_per_obj"] = {}
+        # Frames that already holds consolidated outputs from click or mask inputs
+        # (we directly use their consolidated outputs during tracking)
+        inference_state["consolidated_frame_inds"] = {
+            "cond_frame_outputs": set(),  # set containing frame indices
+            "non_cond_frame_outputs": set(),  # set containing frame indices
+        }
+        # metadata for each tracking frame (e.g. which direction it's tracked)
+        inference_state["tracking_has_started"] = False
+        inference_state["frames_already_tracked"] = {}
+        # Warm up the visual backbone and cache the image feature on frame 0
+        self._get_image_feature(inference_state, frame_idx=0, batch_size=1)
+        return inference_state
 
     @classmethod
-    def from_pretrained(cls, model_id: str, **kwargs) -> "SAM2VideoPredictor":
+    def from_pretrained(cls, model_id: str, **kwargs) -> "SAM2CTPredictor":
         """
         Load a pretrained model from the Hugging Face hub.
 
