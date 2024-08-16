@@ -13,6 +13,8 @@ import torch
 from PIL import Image
 from tqdm import tqdm
 
+import nibabel as nib
+
 
 def get_sdpa_settings():
     if torch.cuda.is_available():
@@ -100,6 +102,10 @@ def _load_img_as_tensor(img_path, image_size):
     video_width, video_height = img_pil.size  # the original video size
     return img, video_height, video_width
 
+def _load_ct_as_tensor(ct_path, image_size):
+    img = nib.load(ct_path)
+    print(img.shape)
+
 
 class AsyncVideoFrameLoader:
     """
@@ -177,7 +183,8 @@ def load_ct_slices(
     async_loading_frames=False,
     compute_device=torch.device("cuda"),
 ):
-    pass
+    ct_data = nib.load(ct_path).get_fdata()
+    print(ct_data.shape)
     
 
 
