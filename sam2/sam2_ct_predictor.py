@@ -71,6 +71,8 @@ class SAM2CTPredictor(SAM2Base):
             img_mean = img_mean.to(compute_device)
             img_std = img_std.to(compute_device)
         # normalize by mean and std
+        print(img_mean.shape)
+        print(ct_data.shape)
         ct_data -= img_mean
         ct_data /= img_std
         
